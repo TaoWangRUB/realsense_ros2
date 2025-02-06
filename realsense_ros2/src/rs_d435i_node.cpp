@@ -1,5 +1,5 @@
 /*
-* ROS wrapper for Realsense d435 camera
+* ROS wrapper for Realsense D435i camera
 * By: Juan Galvis
 * https://github.com/jdgalviss
 *
@@ -43,17 +43,17 @@ const stream_index_pair DEPTH{RS2_STREAM_DEPTH, 0};
 const stream_index_pair INFRA1{RS2_STREAM_INFRARED, 1};
 const stream_index_pair INFRA2{RS2_STREAM_INFRARED, 2};
 
-/*! D435 Node class */
-class D435Node : public rclcpp::Node
+/*! D435i Node class */
+class D435iNode : public rclcpp::Node
 {
 public:
-  D435Node()
-      : Node("d435_node"), tf_buffer_(this->get_clock()), tf_listener_(tf_buffer_)
+  D435iNode()
+      : Node("D435i_node"), tf_buffer_(this->get_clock()), tf_listener_(tf_buffer_)
   {
     // Get execution parameters
-    this->declare_parameter<bool>("is_color", true);
+    this->declare_parameter<bool>("is_color", false);
     this->declare_parameter<bool>("publish_depth", true);
-    this->declare_parameter<bool>("publish_pointcloud", true);
+    this->declare_parameter<bool>("publish_pointcloud", false);
     this->declare_parameter<bool>("publish_image_raw_", false);
     this->declare_parameter<int>("fps", 30); // can only take the values of
     this->get_parameter("is_color", is_color_);
@@ -78,21 +78,19 @@ public:
     // Publishers
     if (publish_depth_)
     {
-      align_depth_publisher_ = image_transport::create_publisher(this, "rs_d435/aligned_depth/image_raw");
-      depth_camera_info_publisher_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("rs_d435/aligned_depth/camera_info", 10);
-      camera_info_publisher_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("rs_d435/image_raw/camera_info", 10);
+      align_depth_publisher_ = image_transport::create_publisher(this, "rs_D435i/aligned_depth/image_raw");
+      depth_camera_info_publisher_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("rs_D435i/aligned_depth/camera_info", 10);
+      camera_info_publisher_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("rs_D435i/image_raw/camera_info", 10);
 
     }
     if (publish_pointcloud_)
-      pcl_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("rs_d435/point_cloud", 10);
-    else
-      RCLCPP_INFO(logger_, "no point cloud");
+      pcl_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("rs_D435i/point_cloud", 10);
     if (publish_image_raw_)
-      image_raw_publisher_ = image_transport::create_publisher(this, "rs_d435/image_raw");
+      image_raw_publisher_ = image_transport::create_publisher(this, "rs_D435i/image_raw");
 
 
     // Timer
-    timer_ = this->create_wall_timer(1ms, std::bind(&D435Node::TimerCallback, this));
+    timer_ = this->create_wall_timer(1ms, std::bind(&D435iNode::TimerCallback, this));
   }
 
 private:
@@ -206,7 +204,7 @@ private:
     {
       camera_info_.width = intrinsic.width;
       camera_info_.height = intrinsic.height;
-      camera_info_.header.frame_id = "camera_link_d435";
+      camera_info_.header.frame_id = "camera_link_D435i";
       camera_info_.k.at(0) = intrinsic.fx;
       camera_info_.k.at(2) = intrinsic.ppx;
       camera_info_.k.at(4) = intrinsic.fy;
@@ -252,7 +250,7 @@ private:
     else{
       camera_info_depth_.width = intrinsic.width;
       camera_info_depth_.height = intrinsic.height;
-      camera_info_depth_.header.frame_id = "camera_link_d435";
+      camera_info_depth_.header.frame_id = "camera_link_D435i";
       camera_info_depth_.k.at(0) = intrinsic.fx;
       camera_info_depth_.k.at(2) = intrinsic.ppx;
       camera_info_depth_.k.at(4) = intrinsic.fy;
@@ -321,7 +319,7 @@ private:
     img->height = height;
     img->is_bigendian = false;
     img->step = width * bpp;
-    img->header.frame_id = "camera_link_d435";
+    img->header.frame_id = "camera_link_D435i";
     // Wait for transform to be available begfore publishing
     // while (!tf_buffer_.canTransform("odom", "base_link", tf2::TimePointZero, 10s))
     // {
@@ -366,7 +364,7 @@ private:
         img_msg->height = image_frame.get_height();
         img_msg->is_bigendian = false;
         img_msg->step = width * bpp;
-        img_msg->header.frame_id = "camera_link_d435";
+        img_msg->header.frame_id = "camera_link_D435i";
         img_msg->header.stamp = t;
         image_raw_publisher_.publish(img_msg);
     }
@@ -374,7 +372,7 @@ private:
     // Create pointcloud msg
     sensor_msgs::msg::PointCloud2 msg_pointcloud;
     msg_pointcloud.header.stamp = t;
-    msg_pointcloud.header.frame_id = "camera_link_d435_pcl";
+    msg_pointcloud.header.frame_id = "camera_link_D435i_pcl";
     msg_pointcloud.width = depth_intrinsics.width;
     msg_pointcloud.height = depth_intrinsics.height;
     msg_pointcloud.is_dense = true;
@@ -411,14 +409,13 @@ private:
           *(iter_x + iter_offset) = std_nan;
           *(iter_y + iter_offset) = std_nan;
           *(iter_z + iter_offset) = std_nan;
-
           *(iter_r + iter_offset) = static_cast<uint8_t>(96);
           *(iter_g + iter_offset) = static_cast<uint8_t>(157);
           *(iter_b + iter_offset) = static_cast<uint8_t>(198);
         }
         else
         {
-          *(iter_x + iter_offset) = depth_point[0]; 
+          *(iter_x + iter_offset) = depth_point[0];
           *(iter_y + iter_offset) = depth_point[1];
           *(iter_z + iter_offset) = depth_point[2];
           if (is_color_)
@@ -426,7 +423,6 @@ private:
             *(iter_r + iter_offset) = color_data[iter_offset * 3];
             *(iter_g + iter_offset) = color_data[iter_offset * 3 + 1];
             *(iter_b + iter_offset) = color_data[iter_offset * 3 + 2];
-
           }
         }
 
@@ -455,7 +451,7 @@ private:
       img_msg->height = image_frame.get_height();
       img_msg->is_bigendian = false;
       img_msg->step = width * bpp;
-      img_msg->header.frame_id = "camera_link_d435";
+      img_msg->header.frame_id = "camera_link_D435i";
       img_msg->header.stamp = t;
       image_raw_publisher_.publish(img_msg);
     }
@@ -493,7 +489,7 @@ private:
   }
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
-  rclcpp::Logger logger_ = rclcpp::get_logger("D435Node");
+  rclcpp::Logger logger_ = rclcpp::get_logger("D435iNode");
   rclcpp::TimerBase::SharedPtr timer_;
   std::chrono::steady_clock::time_point begin_;
 
@@ -534,9 +530,9 @@ private:
 
 int main(int argc, char **argv)
 {
-  printf("starting rs_d435 node\n");
+  printf("starting rs_D435i node\n");
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<D435Node>());
+  rclcpp::spin(std::make_shared<D435iNode>());
   rclcpp::shutdown();
   return 0;
 }

@@ -18,7 +18,7 @@
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <image_transport/image_transport.h>
+#include <image_transport/image_transport.hpp>
 #include <librealsense2/rs.hpp>
 #include <librealsense2/rsutil.h>
 #include <librealsense2/hpp/rs_processing.hpp>

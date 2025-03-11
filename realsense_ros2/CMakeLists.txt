@@ -28,6 +28,7 @@ find_package(tf2_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
+find_package(rclpy REQUIRED)
 
 find_package(Boost COMPONENTS system REQUIRED)
 find_package(PCL COMPONENTS common REQUIRED)
@@ -105,6 +106,27 @@ target_include_directories(rs_d435_node PUBLIC
 
 install(TARGETS rs_d435_node
   DESTINATION lib/${PROJECT_NAME})
+
+add_executable(vio_to_px4 src/vio_to_px4.cpp)
+ament_target_dependencies(vio_to_px4 rclcpp nav_msgs)
+install(TARGETS
+  vio_to_px4
+  DESTINATION lib/${PROJECT_NAME})
+  
+###########
+# Python ##
+###########
+
+# Install Python modules
+#ament_python_install_package(${PROJECT_NAME})
+
+# Install Python executables
+install(PROGRAMS
+  src/python/vio_to_px4_dds.py
+  src/python/vio_to_px4_mavros.py
+  src/python/vio_dummy.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

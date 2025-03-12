@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 
 import rclpy
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.node import Node
 from px4_msgs.msg import VehicleOdometry
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
+
 import numpy as np
 from time import time
 
 class VIOPublisher(Node):
     def __init__(self):
         super().__init__('vio_publisher')
-        # self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.odom_sub = self.create_subscription(Odometry, '/camera/pose/sample', self.odom_callback, 10)
-        self.get_logger().info(f'Subscribing to topic: {self.odom_sub.topic_name}')
+
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
+        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, qos_profile)
+        #self.odom_sub = self.create_subscription(Odometry, '/camera/pose/sample', self.odom_callback, qos_profile)
+        # self.imu_sub = self.create_subscription(Imu, '/camera/imu', self.imu_callback, 10)
         self.px4_pub = self.create_publisher(VehicleOdometry, '/fmu/in/vehicle_visual_odometry', 10)
         
         self.is_publishing = False
@@ -24,17 +34,16 @@ class VIOPublisher(Node):
         self.timer = self.create_timer(1.0, self.check_odom_status)
 
     def odom_callback(self, msg):
-        self.get_logger().warning('callback activated')
         
         # directly forwarding
         if not self.is_publishing:
-            self.get_logger().info('/odom will be forwareded to /fmu/in/vehicle_odometry')
+            self.get_logger().info(f'{self.odom_sub.topic_name} is forwareded to {self.px4_pub.topic_name}')
             self.is_publishing = True
         
         # Update last received time
         self.last_odom_time = time()
         
-        #vio_msg = VehicleOdometry()
+        vio_msg = VehicleOdometry()
         #vio_msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)  # PX4 expects timestamps in microseconds
         #vio_msg.position = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
 
@@ -68,4 +77,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

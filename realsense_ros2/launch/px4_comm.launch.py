@@ -62,8 +62,10 @@ def generate_launch_description():
     return LaunchDescription([
 
         #vio_dummy_node,
+        # launch t265 ros node
         vio_launch,
         #vio_to_px_mavros_node,
+        # forward odom to px4 format 
         vio_to_px_dds_node,
         #offboard_launch
     ])

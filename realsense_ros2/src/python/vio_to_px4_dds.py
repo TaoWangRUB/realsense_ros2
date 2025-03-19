@@ -6,9 +6,13 @@ from rclpy.node import Node
 from px4_msgs.msg import VehicleOdometry
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
+from geometry_msgs.msg import Quaternion
 
 import numpy as np
 from time import time
+from tf_transformations import quaternion_multiply, quaternion_from_euler
+
+import threading  # Import threading for lock
 
 class VIOPublisher(Node):
     def __init__(self):
@@ -32,34 +36,94 @@ class VIOPublisher(Node):
         
         # Timer to check subscription status every 1 second
         self.timer = self.create_timer(1.0, self.check_odom_status)
+        
+        # Timer to check subscription status every 1 second
+        self.timer_output = self.create_timer(0.02, self.pub_px4_odom)
+        
+        # Store received odom
+        self.px4_odom = VehicleOdometry()
+        
+        self.lock = threading.Lock()
 
     def odom_callback(self, msg):
-        
+        """
+        Callback to convert ROS 2 Odometry to PX4 VehicleOdometry message.
+        """
         # directly forwarding
         if not self.is_publishing:
             self.get_logger().info(f'{self.odom_sub.topic_name} is forwareded to {self.px4_pub.topic_name}')
             self.is_publishing = True
         
+        self.px4_odom.timestamp = int(self.get_clock().now().nanoseconds / 1000)  # PX4 expects time in microseconds
+        self.px4_odom.timestamp_sample = int(msg.header.stamp.nanosec / 1000) + (msg.header.stamp.sec * 1_000_000)
+
         # Update last received time
         self.last_odom_time = time()
         
-        vio_msg = VehicleOdometry()
-        #vio_msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)  # PX4 expects timestamps in microseconds
-        #vio_msg.position = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]
+        # set position frame
+        self.px4_odom.pose_frame = VehicleOdometry.POSE_FRAME_NED  # PX4 uses NED frame
+        # Convert position (ENU -> NED)
+        self.px4_odom.position[0] = -msg.pose.pose.position.x
+        self.px4_odom.position[1] = -msg.pose.pose.position.y
+        self.px4_odom.position[2] = -msg.pose.pose.position.z
+        # self.get_logger().info('x = %f, y = %f, z = %f' %(px4_odom.position[0], px4_odom.position[1], px4_odom.position[2]))
+        
+        # Set position variance
+        self.px4_odom.position_variance[0] = 0.01  # Variance in X position (m^2)
+        self.px4_odom.position_variance[1] = 0.01  # Variance in Y position (m^2)
+        self.px4_odom.position_variance[2] = 0.01  # Variance in Z position (m^2)
+        
+        # Convert orientation (ENU -> NED)
+        q_enu = msg.pose.pose.orientation
+        
+        q_ned = Quaternion()
+        q_ned.x = -q_enu.x
+        q_ned.y = -q_enu.y
+        q_ned.z = -q_enu.z
+        q_ned.w = q_enu.w
+        self.px4_odom.q = [q_ned.x, q_ned.y, q_ned.z, q_ned.w]
+        # q_enu is the T265 quaternion in FLU frame (x, y, z, w)
+        # Define the 180° rotation about the X (forward) axis using numpy's pi
+        q_delta = quaternion_from_euler(np.pi*1, 0, 0)  # typically yields [1, 0, 0, 0]
 
-        # Convert quaternion to yaw
-        #q = msg.pose.pose.orientation
-        #yaw = np.arctan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-        #vio_msg.q = [q.x, q.y, q.z, q.w]  # PX4 uses [x, y, z, w] order
-
-        # Set velocity (if available)
-        #vio_msg.velocity = [msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]
-        #vio_msg.angular_velocity = [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]
-
-        #vio_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED  # PX4 uses NED frame
-
-        self.px4_pub.publish(vio_msg)
+        # Multiply to get the quaternion in FRD frame:
+        q_frd = quaternion_multiply(q_delta, [-q_enu.x, q_enu.y, q_enu.z, q_enu.w])
+        self.px4_odom.q = q_frd
+        
+        # Set orientation variance
+        self.px4_odom.orientation_variance[0] = 0.01  # Variance in roll (rad^2)
+        self.px4_odom.orientation_variance[1] = 0.01  # Variance in pitch (rad^2)
+        self.px4_odom.orientation_variance[2] = 0.01  # Variance in yaw (rad^2)
+        
+        # Convert velocity (ENU -> NED)
+        self.px4_odom.velocity[0] = -msg.twist.twist.linear.x
+        self.px4_odom.velocity[1] = -msg.twist.twist.linear.y
+        self.px4_odom.velocity[2] = -msg.twist.twist.linear.z
+        
+        # Set velocity frame
+        self.px4_odom.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED  # PX4 uses NED frame
+        # Set velocity variance
+        self.px4_odom.velocity_variance[0] = 0.01  # Variance in X velocity (m^2/s^2)
+        self.px4_odom.velocity_variance[1] = 0.01  # Variance in Y velocity (m^2/s^2)
+        self.px4_odom.velocity_variance[2] = 0.01  # Variance in Z velocity (m^2/s^2)
+        
+        # Convert angular velocity (ENU -> NED)
+        self.px4_odom.angular_velocity[0] = -msg.twist.twist.angular.x
+        self.px4_odom.angular_velocity[1] = -msg.twist.twist.angular.y
+        self.px4_odom.angular_velocity[2] = -msg.twist.twist.angular.z
+        
+        # set signal quality
+        self.px4_odom.quality = 100
+        
+        # Publish to PX4
+        #self.px4_pub.publish(self.px4_odom)
     
+    def pub_px4_odom(self):
+        # Publish to PX4
+        with self.lock:  # Ensure thread-safe access
+            self.px4_odom.timestamp = int(self.get_clock().now().nanoseconds / 1000)  # PX4 expects time in microseconds
+            self.px4_pub.publish(self.px4_odom)
+        
     def check_odom_status(self):
         # Check if /odom topic is still alive by checking the last received time
         if time() - self.last_odom_time > self.odom_timeout and self.is_publishing:

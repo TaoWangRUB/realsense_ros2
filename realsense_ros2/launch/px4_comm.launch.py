@@ -18,7 +18,8 @@ def generate_launch_description():
     # ros2 topic remap
     remappings = [
           ('imu', '/imu/data'),
-          ('odom', '/camera/pose/sample'),]
+          ('odom', '/camera/pose/sample'),
+          ]
     
     # vio forward to px4     
     vio_dummy_node = Node(
@@ -26,14 +27,25 @@ def generate_launch_description():
             executable='vio_dummy.py', 
             output='screen')
     
-    # vio forward to px4 
-    vio_launch_path = os.path.join(
+    # vio t265 forward to px4 
+    vio_t265_launch_path = os.path.join(
         get_package_share_directory('realsense_ros2'),
         'launch',
         'realsense_t265_odom.py'
     )
-    vio_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(vio_launch_path),
+    vio_t265_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(vio_t265_launch_path),
+    )
+    
+    # vio l515 forward to px4 
+    vio_l515_launch_path = os.path.join(
+        get_package_share_directory('realsense_ros2'),
+        'launch',
+        'realsense_l515_rtabmap.py'
+    )
+    # realsense_l515_rtabmap.py l515_slam_toolbox.launch.py
+    vio_l515_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(vio_l515_launch_path),
     )
     
     # vio forward to px4     
@@ -63,9 +75,14 @@ def generate_launch_description():
 
         #vio_dummy_node,
         # launch t265 ros node
-        vio_launch,
+        vio_t265_launch,
+        # launch l515 vio ros node
+        #vio_l515_launch,
+        
         #vio_to_px_mavros_node,
         # forward odom to px4 format 
         vio_to_px_dds_node,
-        #offboard_launch
+        
+        # launch offboard control
+        offboard_launch
     ])

@@ -47,6 +47,13 @@ def generate_launch_description():
                               'rgb_camera.profile': '640x480x30'}.items(),
     )
 
+    
+    static_tf_camera_link_to_optical_link = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0', '0', '0', '-1.5708', '0', '-1.5708', 'camera_link', 'camera_imu_optical_frame']
+    )
+    
     vio_node = Node(
             package='rtabmap_odom', 
             executable='rgbd_odometry', 
@@ -75,7 +82,7 @@ def generate_launch_description():
             name='ekf_filter_node',
             output='screen',
             parameters=[os.path.join(get_package_share_directory("realsense_ros2"), 'params', 'ekf.yaml'),
-                {"frequency": 50.0,
+                {"frequency": 100.0,
                  "predict_to_current_time": True,
                  "odom0": "/odom",
                  "odom0_config": [True, True, False,
@@ -102,9 +109,11 @@ def generate_launch_description():
     imu_filter_node = Node(
             package='imu_filter_madgwick', executable='imu_filter_madgwick_node', output='screen',
             parameters=[{'use_mag': False, 
-                         'world_frame':'enu', 
-                         'publish_tf':True,
-                         'fixed_frame': "camera_link"}],
+                         'world_frame':'nwu', # ned, enu, nwu
+                         #'yaw_offset': -1.5708,
+                         'publish_tf':False,
+                         #'fixed_frame': "camera_link"
+                         }],
             remappings=[('imu/data_raw', '/camera/imu')])
     
     return LaunchDescription([
@@ -113,11 +122,13 @@ def generate_launch_description():
         
         SetParameter(name='Rtabmap/CameraRate', value=30),
         
+        static_tf_camera_link_to_optical_link,
+        
         unite_imu_method,
         realsense_launch, 
         vio_node,
-        slam_node,
+        #slam_node,
         imu_filter_node,
-        ekf_filter_node,
-        rviz_node,
+        #ekf_filter_node,
+        #rviz_node,
     ])

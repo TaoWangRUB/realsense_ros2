@@ -18,7 +18,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     parameters=[{
-          'frame_id':'camera_link',
+          'frame_id':'base_link',
           'subscribe_depth':True,
           'subscribe_odom_info':True,
           'approx_sync':True,
@@ -26,9 +26,9 @@ def generate_launch_description():
 
     remappings=[
           ('imu', '/imu/data'),
-          ('rgb/image', '/camera/color/image_raw'),
-          ('rgb/camera_info', '/camera/color/camera_info'),
-          ('depth/image', '/camera/aligned_depth_to_color/image_raw')]
+          ('rgb/image', '/t265/color/image_raw'),
+          ('rgb/camera_info', '/t265/color/camera_info'),
+          ('depth/image', '/t265/aligned_depth_to_color/image_raw')]
 
     # Launch arguments
     unite_imu_method = DeclareLaunchArgument(
@@ -40,7 +40,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('realsense2_camera'), 'launch'),
             '/rs_launch.py']),
-            launch_arguments={'camera_namespace': '',
+            launch_arguments={'camera_namespace': 't265',
+                              'serial_no': '',
+                              'device_type': 't265',
+                              'camera_name': 't265',
                               'enable_gyro': 'true',
                               'enable_accel': 'true',
                               'unite_imu_method': LaunchConfiguration('unite_imu_method'),
@@ -56,7 +59,7 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='tf_baselink_cameraPose',
-        arguments = ["0.1", "0", "-0.15", "0", "0", "0", "camera_link", "base_link"],
+        arguments = ["0.1", "0", "0.15", "0", "0", "0", "base_link", "t265_link"],
         output="screen"
     )
     
@@ -65,7 +68,7 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='tf_odom_cameraOdom',
-        arguments = ["0", "0", "0", "0", "0", "0", "odom", "odom_frame"],
+        arguments = ["0", "0", "0", "0", "0", "3.14159", "odom", "odom_frame"],
         output="screen"
     )
     

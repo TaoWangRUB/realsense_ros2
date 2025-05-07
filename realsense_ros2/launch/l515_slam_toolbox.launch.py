@@ -138,14 +138,21 @@ def generate_launch_description():
         output='screen',
         parameters=[os.path.join(get_package_share_directory('realsense_ros2'), 'config', 'ekf.yaml')]
     )
+
+    rviz2_node = Node(
+            package='rtabmap_viz', 
+            executable='rtabmap_viz', 
+            output='screen',
+            parameters=parameters,
+            remappings=remappings)
     
     # RViz2 node
-    rviz2_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', os.path.join(get_package_share_directory('slam_toolbox'), 'config', 'slam_toolbox_default.rviz')]
-    )
+    #rviz2_node = Node(
+    #    package='rviz2',
+    #    executable='rviz2',
+    #    name='rviz2',
+    #    arguments=['-d', os.path.join(get_package_share_directory('slam_toolbox'), 'config', 'slam_toolbox_default.rviz')]
+    #)
 
     return LaunchDescription([
         unite_imu_method,  # Add the DeclareLaunchArgument to the LaunchDescription

@@ -75,7 +75,7 @@ def generate_launch_description():
 
         # Nodes to launch
         Node(
-            package='rtabmap_ros', node_executable='rtabmap', output='screen',
+            package='rtabmap_slam', node_executable='rtabmap', output='screen',
             parameters=parameters,
             remappings=remappings,
             arguments=['-d']),

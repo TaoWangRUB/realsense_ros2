@@ -16,11 +16,14 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     parameters=[{
-          'frame_id':'camera_link',
+          'frame_id':'base_link',
+          'publish_tf': False,
           'subscribe_depth':True,
           'subscribe_odom_info':True,
           'approx_sync':True,
-          'wait_imu_to_init':True}]
+          'approx_sync_max_interval': 0.02,
+          'wait_imu_to_init':True,
+          }]
 
     remappings=[
           ('imu', '/imu/data'),
@@ -39,19 +42,36 @@ def generate_launch_description():
             get_package_share_directory('realsense2_camera'), 'launch'),
             '/rs_launch.py']),
             launch_arguments={'camera_namespace': '',
+                              #'camera_name': '',
+                              #'serial_no': '', #f0461100
+                              #'device_type': '',
                               'enable_gyro': 'true',
                               'enable_accel': 'true',
                               'unite_imu_method': LaunchConfiguration('unite_imu_method'),
                               'align_depth.enable': 'true',
                               'enable_sync': 'true',
-                              'rgb_camera.profile': '640x480x30'}.items(),
+                              'rgb_camera.profile': '640x480x60'
+                              }.items(),
     )
 
     
+    # base_link to camera_link
+    tf_base_to_pose = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='tf_baselink_cameraPose',
+        arguments = ["0.1", "0", "0.2", "0", "0", "0", "base_link", "camera_link"],
+        output="screen"
+    )
     static_tf_camera_link_to_optical_link = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         arguments=['0', '0', '0', '-1.5708', '0', '-1.5708', 'camera_link', 'camera_imu_optical_frame']
+    )
+    static_tf_optical_link_to_optical_link = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'l515_imu_optical_frame', 'camera_imu_optical_frame']
     )
     
     vio_node = Node(
@@ -84,16 +104,21 @@ def generate_launch_description():
             parameters=[os.path.join(get_package_share_directory("realsense_ros2"), 'params', 'ekf.yaml'),
                 {"frequency": 100.0,
                  "predict_to_current_time": True,
+                 "publish_tf": True,
+                 "map_frame": "map",                # Defaults to "map" if unspecified
+                 "odom_frame": "odom",              # Defaults to "odom" if unspecified
+                 "base_link_frame": "base_link",  # Defaults to "base_link" if unspecified
+                 "world_frame": "odom",             # Defaults to the value of odom_frame if unspecified
                  "odom0": "/odom",
-                 "odom0_config": [True, True, False,
-                                  False, False, True,
-                                  True, True, False,
-                                  False, False, True,
+                 "odom0_config": [True, True, True,
+                                  True, True, True,
+                                  True, True, True,
+                                  True, True, True,
                                   False, False, False],
                  "odom0_queue_size": 10,
                  "odom0_nodelay": False,
                  "imu0": "/imu/data",
-                 "imu0_config": [False, False, False,
+                 "imu0_config": [True, True, True,
                                  True, True, True,
                                  False, False, False,
                                  True, True, True,
@@ -122,13 +147,15 @@ def generate_launch_description():
         
         SetParameter(name='Rtabmap/CameraRate', value=30),
         
+        tf_base_to_pose,
         static_tf_camera_link_to_optical_link,
+        #static_tf_optical_link_to_optical_link,
         
         unite_imu_method,
         realsense_launch, 
         vio_node,
         #slam_node,
         imu_filter_node,
-        #ekf_filter_node,
+        ekf_filter_node,
         #rviz_node,
     ])
